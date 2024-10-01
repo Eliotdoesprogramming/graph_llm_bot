@@ -53,7 +53,7 @@ def _parse_input(user_input: UserInput) -> Tuple[Dict[str, Any], str]:
             run_id=run_id,
         ),
     )
-    return kwargs, run_id
+    return kwargs, run_id, thread_id
 
 
 @app.post("/invoke")
@@ -65,12 +65,13 @@ async def invoke(user_input: UserInput) -> ChatMessage:
     is also attached to messages for recording feedback.
     """
     agent: CompiledGraph = app.state.agent
-    kwargs, run_id = _parse_input(user_input)
+    kwargs, run_id, thread_id = _parse_input(user_input)
     try:
         response = await agent.ainvoke(**kwargs)
         # check for interrupt
         
         output = ChatMessage.from_langchain(response["messages"][-1])
+        output.thread_id = thread_id
         output.run_id = str(run_id)
         return output
     except Exception as e:
@@ -84,7 +85,7 @@ async def message_generator(user_input: StreamInput) -> AsyncGenerator[str, None
     This is the workhorse method for the /stream endpoint.
     """
     agent: CompiledGraph = app.state.agent
-    kwargs, run_id = _parse_input(user_input)
+    kwargs, run_id, thread_id = _parse_input(user_input)
 
     # Process streamed events from the graph and yield messages over the SSE stream.
     async for event in agent.astream_events(**kwargs, version="v2"):
@@ -104,6 +105,7 @@ async def message_generator(user_input: StreamInput) -> AsyncGenerator[str, None
                 try:
                     chat_message = ChatMessage.from_langchain(message)
                     chat_message.run_id = str(run_id)
+                    chat_message.thread_id = thread_id
                 except Exception as e:
                     yield f"data: {json.dumps({'type': 'error', 'content': f'Error parsing message: {e}'})}\n\n"
                     continue

@@ -3,7 +3,7 @@ from langchain_openai import ChatOpenAI
 from langchain_groq import ChatGroq
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig, RunnableLambda
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph, MessagesState
@@ -94,8 +94,12 @@ async def confirm_tools(state:AgentState, config:RunnableConfig):
     return {"messages": [AIMessage(content=f"I would like to use the following tool: {tool_calls[0]['name']}.\n Is that okay? (yes/no)")]}
 
 
+async def accept_confirmation(state:AgentState, config:RunnableConfig):
+    """because interrupt_after is set to run all edges before the next node, we have a placeholder node to  trigger the check_tool_approval edge"""
+    return 
+
 async def continue_to_tool(state:AgentState, config:RunnableConfig):
-    """If the user confirms the tool, re-add the tool call to the messages."""
+    """If the user confirms the tool, re-add the tool call   to the messages."""
     tool_call_message = state["messages"][-1]
     return {"messages": [tool_call_message]}
 
@@ -110,6 +114,7 @@ builder.add_node("tools", ToolNode(tools))
 builder.add_node("continue_to_tool", continue_to_tool)
 builder.add_node("llama_guard_output", llama_guard_output)
 builder.add_node("confirm_tools", confirm_tools)
+builder.add_node("accept_confirmation", accept_confirmation)
 
 # Check for unsafe input and block further processing if found
 def check_safety(state: AgentState):
@@ -123,7 +128,7 @@ def check_safety(state: AgentState):
     return "safe"
 
 def check_tool_approval(state: AgentState):
-    if type(state["messages"][-1])==AIMessage and state["messages"][-1].content.lower() == "yes":
+    if type(state["messages"][-1])==HumanMessage and state["messages"][-1].content.lower() == "yes":
         return "approved"
     return "denied"
 
@@ -134,8 +139,9 @@ builder.add_edge("model", "llama_guard_output")
 builder.add_conditional_edges(
     "llama_guard_output", check_safety, {"unsafe": "block_unsafe_content", "safe": END, "tools": "confirm_tools"}
 )
+builder.add_edge("confirm_tools", "accept_confirmation")
 builder.add_conditional_edges(
-    "confirm_tools", check_tool_approval, {"approved": "continue_to_tool", "denied": END})
+    "accept_confirmation", check_tool_approval, {"approved": "continue_to_tool", "denied": END})
 
 builder.add_edge("continue_to_tool", "tools")
 # Always END after blocking unsafe content
