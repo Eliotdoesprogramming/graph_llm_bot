@@ -1,7 +1,9 @@
 import math
+import os
 import numexpr
 import re
 from langchain_core.tools import tool, BaseTool
+from langchain_community.tools import DuckDuckGoSearchResults, OpenWeatherMapQueryRun
 
 
 def calculator_func(expression: str) -> str:
@@ -37,3 +39,14 @@ def calculator_func(expression: str) -> str:
 
 calculator: BaseTool = tool(calculator_func)
 calculator.name = "Calculator"
+
+
+
+
+web_search = DuckDuckGoSearchResults(name="WebSearch")
+tools = [web_search, calculator]
+
+# Add weather tool if API key is set
+# Register for an API key at https://openweathermap.org/api/
+if os.getenv("OPENWEATHERMAP_API_KEY") is not None:
+    tools.append(OpenWeatherMapQueryRun(name="Weather"))

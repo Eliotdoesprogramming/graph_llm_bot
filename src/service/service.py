@@ -12,7 +12,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.graph import CompiledGraph
 from langsmith import Client as LangsmithClient
 
-from agent import research_assistant
+from agent import graph
 from schema import ChatMessage, Feedback, UserInput, StreamInput
 
 warnings.filterwarnings("ignore", category=LangChainBetaWarning)
@@ -22,8 +22,8 @@ warnings.filterwarnings("ignore", category=LangChainBetaWarning)
 async def lifespan(app: FastAPI):
     # Construct agent with Sqlite checkpointer
     async with AsyncSqliteSaver.from_conn_string("checkpoints.db") as saver:
-        research_assistant.checkpointer = saver
-        app.state.agent = research_assistant
+        graph.checkpointer = saver
+        app.state.agent = graph
         yield
     # context manager will clean up the AsyncSqliteSaver on exit
 
@@ -68,6 +68,8 @@ async def invoke(user_input: UserInput) -> ChatMessage:
     kwargs, run_id = _parse_input(user_input)
     try:
         response = await agent.ainvoke(**kwargs)
+        # check for interrupt
+        
         output = ChatMessage.from_langchain(response["messages"][-1])
         output.run_id = str(run_id)
         return output

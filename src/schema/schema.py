@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Literal
+from typing import Dict, Any, List, Literal, Optional
 from langchain_core.messages import (
     BaseMessage,
     HumanMessage,
@@ -23,7 +23,7 @@ class UserInput(BaseModel):
         default="gpt-4o-mini",
         examples=["gpt-4o-mini", "llama-3.1-70b"],
     )
-    thread_id: str | None = Field(
+    thread_id: Optional[str | None] = Field(
         description="Thread ID to persist and continue a multi-turn conversation.",
         default=None,
         examples=["847c6285-8fc9-4560-a83f-4e6285809254"],
